@@ -4,23 +4,9 @@ pub type DWord = u16;
 pub type Word = u8;
 pub type Nibble = u8;
 
-pub enum Pointer {
-    Register(Nibble),
-    Address(DWord),
-}
-
 pub enum Value {
     Register(Nibble),
     Byte(Word),
-}
-
-impl fmt::Display for Pointer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Pointer::Register(reg) => write!(f, "V{}", reg),
-            Pointer::Address(addr) => write!(f, "{:#X}", addr),
-        }
-    }
 }
 
 impl fmt::Display for Value {
@@ -49,21 +35,21 @@ pub enum Instruction {
     SHR(Nibble, Nibble),
     SUBN(Nibble, Nibble),
     SHL(Nibble, Nibble),
-    LD_SET_I(DWord),
-    JP_OFFSET(DWord),
+    LDI(DWord),
+    JPO(DWord),
     RND(Nibble, Word),
     DRW(Nibble, Nibble, Nibble),
     SKP(Nibble),
     SKNP(Nibble),
-    LD_DT(Nibble),
-    LD_K(Nibble),
-    LD_SET_DT(Nibble),
-    LD_SET_ST(Nibble),
-    ADD_TO_I(Nibble),
-    LD_SET_F(Nibble),
-    LD_SET_B(Nibble),
-    LD_SET_BULK(Nibble),
-    LD_BULK(Nibble),
+    LDDT(Nibble),
+    LDK(Nibble),
+    LDSDT(Nibble),
+    LDSST(Nibble),
+    ADDI(Nibble),
+    LDF(Nibble),
+    LDB(Nibble),
+    LDSBLK(Nibble),
+    LDBLK(Nibble),
 }
 
 fn get_nibble(i: u16, offset: u16) -> u8 {
@@ -106,23 +92,23 @@ impl Instruction {
             _ if i & 0xF00F == 0x9000 => {
                 Ok(SNE(get_nibble(i, 4), Value::Register(get_nibble(i, 8))))
             }
-            _ if i & 0xF000 == 0xA000 => Ok(LD_SET_I(i & 0xFFF)),
-            _ if i & 0xF000 == 0xB000 => Ok(JP_OFFSET(i & 0xFFF)),
+            _ if i & 0xF000 == 0xA000 => Ok(LDI(i & 0xFFF)),
+            _ if i & 0xF000 == 0xB000 => Ok(JPO(i & 0xFFF)),
             _ if i & 0xF000 == 0xC000 => Ok(RND(get_nibble(i, 4), get_word(i, 8))),
             _ if i & 0xF000 == 0xD000 => {
                 Ok(DRW(get_nibble(i, 4), get_nibble(i, 8), get_nibble(i, 12)))
             }
             _ if i & 0xF0FF == 0xE09E => Ok(SKP(get_nibble(i, 4))),
             _ if i & 0xF0FF == 0xE0A1 => Ok(SKNP(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF007 => Ok(LD_DT(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF00A => Ok(LD_K(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF015 => Ok(LD_SET_DT(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF018 => Ok(LD_SET_ST(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF01E => Ok(ADD_TO_I(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF029 => Ok(LD_SET_F(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF033 => Ok(LD_SET_B(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF055 => Ok(LD_SET_BULK(get_nibble(i, 4))),
-            _ if i & 0xF0FF == 0xF065 => Ok(LD_BULK(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF007 => Ok(LDDT(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF00A => Ok(LDK(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF015 => Ok(LDSDT(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF018 => Ok(LDSST(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF01E => Ok(ADDI(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF029 => Ok(LDF(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF033 => Ok(LDB(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF055 => Ok(LDSBLK(get_nibble(i, 4))),
+            _ if i & 0xF0FF == 0xF065 => Ok(LDBLK(get_nibble(i, 4))),
             _ => Err("Instruction does not exists"),
         }
     }
@@ -148,21 +134,21 @@ impl fmt::Display for Instruction {
             SHR(ref reg, _) => write!(f, "SHR V{}", reg),
             SUBN(ref reg1, ref reg2) => write!(f, "SUBN V{}, V{}", reg1, reg2),
             SHL(ref reg, _) => write!(f, "SHL V{}", reg),
-            LD_SET_I(ref addr) => write!(f, "LD I, {:#X}", addr),
-            JP_OFFSET(ref addr) => write!(f, "JP V0, {:#X}", addr),
+            LDI(ref addr) => write!(f, "LD I, {:#X}", addr),
+            JPO(ref addr) => write!(f, "JP V0, {:#X}", addr),
             RND(ref reg, ref b) => write!(f, "RND V{}, {}", reg, b),
             DRW(ref reg1, ref reg2, ref n) => write!(f, "DRW V{}, V{}, {}", reg1, reg2, n),
             SKP(ref reg) => write!(f, "SKP V{}", reg),
             SKNP(ref reg) => write!(f, "SKNP V{}", reg),
-            LD_DT(ref reg) => write!(f, "LD V{}, DT", reg),
-            LD_K(ref reg) => write!(f, "LD V{}, K", reg),
-            LD_SET_DT(ref reg) => write!(f, "LD DT, V{}", reg),
-            LD_SET_ST(ref reg) => write!(f, "LD ST, V{}", reg),
-            ADD_TO_I(ref reg) => write!(f, "ADD I, V{}", reg),
-            LD_SET_F(ref reg) => write!(f, "LD F, V{}", reg),
-            LD_SET_B(ref reg) => write!(f, "LD B, V{}", reg),
-            LD_SET_BULK(ref reg) => write!(f, "LD [I], V{}", reg),
-            LD_BULK(ref reg) => write!(f, "LD V{}, [I]", reg),
+            LDDT(ref reg) => write!(f, "LD V{}, DT", reg),
+            LDK(ref reg) => write!(f, "LD V{}, K", reg),
+            LDSDT(ref reg) => write!(f, "LD DT, V{}", reg),
+            LDSST(ref reg) => write!(f, "LD ST, V{}", reg),
+            ADDI(ref reg) => write!(f, "ADD I, V{}", reg),
+            LDF(ref reg) => write!(f, "LD F, V{}", reg),
+            LDB(ref reg) => write!(f, "LD B, V{}", reg),
+            LDSBLK(ref reg) => write!(f, "LD [I], V{}", reg),
+            LDBLK(ref reg) => write!(f, "LD V{}, [I]", reg),
         }
     }
 }

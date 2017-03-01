@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 enum Action {
+    Run,
     Disassemble,
 }
 
@@ -20,9 +21,10 @@ impl Config {
         args.next();
 
         let mut path: Option<String> = None;
-        let mut action = Action::Disassemble;
+        let mut action = Action::Run;
         for arg in args {
             match &arg[..] {
+                "--run" => action = Action::Run,
                 "--disassemble" => action = Action::Disassemble,
                 _ => path = Some(arg),
             };
@@ -58,6 +60,7 @@ fn run(config: Config) -> Result<(), Box<Error>> {
     f.read_to_end(&mut data)?;
 
     match config.action {
+        Action::Run => Ok(tw_chip8::run(data)),
         Action::Disassemble => Ok(tw_chip8::disassemble(data)),
     }
 }
