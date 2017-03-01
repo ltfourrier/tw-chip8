@@ -1,17 +1,17 @@
 mod cpu;
 mod memory;
 
-use std::fs::File;
-use std::io::prelude::*;
+use std::io;
+use std::error::Error;
 
-pub fn run(data: Vec<u8>) {
+pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>> where T: io::Write {
     let mut cpu = cpu::CPU::new();
     cpu.load_rom(data);
 
-    // DEBUG: Dump the memory to a file
-    let mut f = File::create("MEMORY_DUMP").unwrap();
-    cpu.dump_memory(&mut f).unwrap();
-    f.flush().unwrap();
+    if let Some(ref mut f) = *dump_file {
+        cpu.dump_memory(f)?;
+    }
+    Ok(())
 }
 
 pub fn disassemble(data: Vec<u8>) {

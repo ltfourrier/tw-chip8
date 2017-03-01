@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 enum Action {
-    Run,
+    Run(Option<String>),
     Disassemble,
 }
 
@@ -21,12 +21,18 @@ impl Config {
         args.next();
 
         let mut path: Option<String> = None;
-        let mut action = Action::Run;
+        let mut action = Action::Run(None);
         for arg in args {
             match &arg[..] {
-                "--run" => action = Action::Run,
+                "--run" => action = Action::Run(None),
                 "--disassemble" => action = Action::Disassemble,
-                _ => path = Some(arg),
+                s if s.starts_with("--dump=") => {
+                    match action {
+                        Action::Run(ref mut path) => *path = Some(String::from(&s[7..])),
+                        Action::Disassemble => return Err("Cannot dump on disassemble."),
+                    }
+                },
+                s => path = Some(String::from(s)),
             };
         }
 
@@ -60,7 +66,16 @@ fn run(config: Config) -> Result<(), Box<Error>> {
     f.read_to_end(&mut data)?;
 
     match config.action {
-        Action::Run => Ok(tw_chip8::run(data)),
+        Action::Run(dump_file) => {
+            let mut f = match dump_file {
+                Some(path) => {
+                    let file = File::create(path)?;
+                    Some(file)
+                },
+                None => None,
+            };
+            tw_chip8::run(data, &mut f)
+        },
         Action::Disassemble => Ok(tw_chip8::disassemble(data)),
     }
 }
