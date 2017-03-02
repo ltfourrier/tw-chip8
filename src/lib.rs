@@ -4,7 +4,9 @@ mod memory;
 use std::io;
 use std::error::Error;
 
-pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>> where T: io::Write {
+pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>>
+    where T: io::Write
+{
     let mut cpu = cpu::CPU::new();
     cpu.load_rom(data);
     cpu.run()?;

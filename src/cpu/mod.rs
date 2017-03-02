@@ -45,10 +45,10 @@ impl CPU {
         loop {
             let inst = inst::Instruction::from_binary(self.memory.read_dword(self.pc as usize)?);
             if let Ok(i) = inst {
+                println!("{:#X}\t|{}", self.pc, i);
                 self.execute(i)?;
             }
 
-            println!("{:#X}", self.pc);
             if self.pc == 0x100 {
                 break;
             }
@@ -63,6 +63,8 @@ impl CPU {
             RET => self.op_ret()?,
             JP(addr) => self.op_jp(addr),
             CALL(addr) => self.op_call(addr)?,
+            SE(reg, val) => self.op_se(reg, val)?,
+            LD(reg, val) => self.op_ld(reg, val)?,
             _ => unimplemented!(),
         }
         Ok(())
@@ -99,6 +101,47 @@ impl CPU {
             Ok(())
         } else {
             Err(CPUError::StackOverflow)
+        }
+    }
+
+    fn op_se(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), Box<Error>> {
+        let first = self.get_register(reg)?;
+        let second = match val {
+            inst::Value::Register(reg) => self.get_register(reg)?,
+            inst::Value::Byte(b) => b,
+        };
+
+        self.pc += if first == second { 4 } else { 2 };
+        Ok(())
+    }
+
+    fn op_ld(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), Box<Error>> {
+        let val = match val {
+            inst::Value::Register(reg) => self.get_register(reg)?,
+            inst::Value::Byte(b) => b,
+        };
+
+        self.set_register(reg, val)?;
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn get_register(&self, reg: inst::Nibble) -> Result<u8, CPUError> {
+        let reg_usize = reg as usize;
+        if reg_usize < V_REGISTER_COUNT {
+            Ok(self.v_registers[reg_usize])
+        } else {
+            Err(CPUError::InvalidRegister(reg))
+        }
+    }
+
+    fn set_register(&mut self, reg: inst::Nibble, v: u8) -> Result<(), CPUError> {
+        let reg_usize = reg as usize;
+        if reg_usize < V_REGISTER_COUNT {
+            self.v_registers[reg_usize] = v;
+            Ok(())
+        } else {
+            Err(CPUError::InvalidRegister(reg))
         }
     }
 }

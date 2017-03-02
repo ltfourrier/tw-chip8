@@ -5,6 +5,7 @@ use std::error::Error;
 pub enum CPUError {
     StackUnderflow,
     StackOverflow,
+    InvalidRegister(u8),
 }
 
 impl fmt::Display for CPUError {
@@ -12,6 +13,7 @@ impl fmt::Display for CPUError {
         match *self {
             CPUError::StackUnderflow => write!(f, "attempting to return from an empty stack"),
             CPUError::StackOverflow => write!(f, "stack overflow"),
+            CPUError::InvalidRegister(reg) => write!(f, "register {} is invalid", reg),
         }
     }
 }
@@ -21,6 +23,7 @@ impl Error for CPUError {
         match *self {
             CPUError::StackUnderflow => "stack underflow",
             CPUError::StackOverflow => "stack overflow",
+            CPUError::InvalidRegister(_) => "invalid register",
         }
     }
 

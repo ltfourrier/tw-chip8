@@ -39,9 +39,7 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Memory {
-        Memory {
-            ram: [0u8; RAM_SIZE],
-        }
+        Memory { ram: [0u8; RAM_SIZE] }
     }
 
     pub fn load_rom(&mut self, rom: Vec<u8>) {
@@ -52,7 +50,9 @@ impl Memory {
         }
     }
 
-    pub fn dump<T>(&self, out: &mut T) -> io::Result<usize> where T: io::Write {
+    pub fn dump<T>(&self, out: &mut T) -> io::Result<usize>
+        where T: io::Write
+    {
         out.write(&self.ram)
     }
 
@@ -71,7 +71,7 @@ impl Memory {
             _ => {
                 self.ram[addr] = b;
                 Ok(())
-            },
+            }
         }
     }
 
@@ -86,4 +86,3 @@ impl Memory {
         self.write_word(addr, (w & 0xFF) as u8)
     }
 }
-
