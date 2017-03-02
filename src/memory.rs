@@ -56,7 +56,7 @@ impl Memory {
         out.write(&self.ram)
     }
 
-    pub fn read_byte(&self, addr: usize) -> Result<u8, MemoryError> {
+    pub fn read_word(&self, addr: usize) -> Result<u8, MemoryError> {
         match addr {
             _ if addr < 0x200 => Err(MemoryError::ReservedAddress(addr)),
             _ if addr > 0xFFF => Err(MemoryError::UnmappedAddress(addr)),
@@ -64,7 +64,7 @@ impl Memory {
         }
     }
 
-    pub fn write_byte(&mut self, addr: usize, b: u8) -> Result<(), MemoryError> {
+    pub fn write_word(&mut self, addr: usize, b: u8) -> Result<(), MemoryError> {
         match addr {
             _ if addr < 0x200 => Err(MemoryError::ReservedAddress(addr)),
             _ if addr > 0xFFF => Err(MemoryError::UnmappedAddress(addr)),
@@ -73,6 +73,17 @@ impl Memory {
                 Ok(())
             },
         }
+    }
+
+    pub fn read_dword(&self, addr: usize) -> Result<u16, MemoryError> {
+        let w1 = self.read_word(addr)?;
+        let w2 = self.read_word(addr + 1)?;
+        Ok((w1 as u16 & 0xFF) << 8 | w2 as u16 & 0xFF)
+    }
+
+    pub fn write_dword(&mut self, addr: usize, w: u16) -> Result<(), MemoryError> {
+        self.write_word(addr, (w >> 8 & 0xFF) as u8)?;
+        self.write_word(addr, (w & 0xFF) as u8)
     }
 }
 

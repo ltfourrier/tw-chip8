@@ -19,6 +19,5 @@ Because the interpreter doesn't live in the emulated memory, the
 be executed with a SYS call for debugging purposes:
 
 - SYS 0x100: exit the interpreter and dump the memory, if using --dump
-- SYS 0x110: immediatelly dump the memory
 
 Remember to remove those calls after debug for maximum compatibility.
