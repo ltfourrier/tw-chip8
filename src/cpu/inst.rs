@@ -4,6 +4,7 @@ pub type DWord = u16;
 pub type Word = u8;
 pub type Nibble = u8;
 
+#[derive(Clone,Copy)]
 pub enum Value {
     Register(Nibble),
     Byte(Word),

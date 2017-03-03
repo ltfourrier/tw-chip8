@@ -68,7 +68,12 @@ impl CPU {
             JP(addr) => Ok(self.op_jp(addr)),
             CALL(addr) => self.op_call(addr),
             SE(reg, val) => self.op_se(reg, val),
+            SNE(reg, val) => self.op_sne(reg, val),
             LD(reg, val) => self.op_ld(reg, val),
+            ADD(reg, val) => self.op_add(reg, val),
+            OR(l_reg, r_reg) => self.op_or(l_reg, r_reg),
+            AND(l_reg, r_reg) => self.op_and(l_reg, r_reg),
+            XOR(l_reg, r_reg) => self.op_xor(l_reg, r_reg),
             _ => unimplemented!(),
         }
     }
@@ -115,9 +120,58 @@ impl CPU {
         Ok(())
     }
 
+    fn op_sne(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
+        let first = try!(self.get_register(reg));
+        let second = try!(self.unwrap_value(val));
+
+        self.pc += if first == second { 2 } else { 4 };
+        Ok(())
+    }
+
     fn op_ld(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
         let val = try!(self.unwrap_value(val));
         try!(self.set_register(reg, val));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_add(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
+        let dst = try!(self.get_register(reg));
+        let add = try!(self.unwrap_value(val));
+
+        let dst = dst as u16 + add as u16;
+        if let inst::Value::Register(_) = val {
+            try!(self.set_register(reg, if dst > 255 { 1 } else { 0 }));
+        }
+        try!(self.set_register(reg, (dst & 0xFF) as u8));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_or(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
+        let left = try!(self.get_register(l_reg));
+        let right = try!(self.get_register(r_reg));
+        try!(self.set_register(l_reg, left | right));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_and(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
+        let left = try!(self.get_register(l_reg));
+        let right = try!(self.get_register(r_reg));
+        try!(self.set_register(l_reg, left & right));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_xor(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
+        let left = try!(self.get_register(l_reg));
+        let right = try!(self.get_register(r_reg));
+        try!(self.set_register(l_reg, left ^ right));
 
         self.pc += 2;
         Ok(())
