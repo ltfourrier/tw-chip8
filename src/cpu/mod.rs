@@ -2,7 +2,6 @@ pub mod inst;
 mod error;
 
 use std::io;
-use std::error::Error;
 
 use super::memory;
 pub use self::error::CPUError;
@@ -17,6 +16,7 @@ pub struct CPU {
     sp: u8,
     stack: [u16; STACK_SIZE],
     memory: memory::Memory,
+    running: bool,
 }
 
 impl CPU {
@@ -28,6 +28,7 @@ impl CPU {
             sp: 0u8,
             stack: [0u16; STACK_SIZE],
             memory: memory::Memory::new(),
+            running: false,
         }
     }
 
@@ -41,38 +42,40 @@ impl CPU {
         self.memory.load_rom(rom);
     }
 
-    pub fn run(&mut self) -> Result<(), Box<Error>> {
+    pub fn run(&mut self) -> Result<(), CPUError> {
+        self.running = true;
         loop {
-            let inst = inst::Instruction::from_binary(self.memory.read_dword(self.pc as usize)?);
-            if let Ok(i) = inst {
-                println!("{:#X}\t|{}", self.pc, i);
-                self.execute(i)?;
+            let inst_dword = try!(self.memory
+                .read_dword(self.pc as usize)
+                .map_err(|err| CPUError::MemoryError(err)));
+            if let Ok(inst) = inst::Instruction::from_binary(inst_dword) {
+                println!("{:#X}\t| {}", self.pc, inst);
+                try!(self.execute(inst));
             }
 
-            if self.pc == 0x100 {
+            if !self.running {
                 break;
             }
         }
         Ok(())
     }
 
-    fn execute(&mut self, inst: inst::Instruction) -> Result<(), Box<Error>> {
+    fn execute(&mut self, inst: inst::Instruction) -> Result<(), CPUError> {
         use self::inst::Instruction::*;
         match inst {
-            SYS(addr) => self.op_sys(addr),
-            RET => self.op_ret()?,
-            JP(addr) => self.op_jp(addr),
-            CALL(addr) => self.op_call(addr)?,
-            SE(reg, val) => self.op_se(reg, val)?,
-            LD(reg, val) => self.op_ld(reg, val)?,
+            SYS(addr) => Ok(self.op_sys(addr)),
+            RET => self.op_ret(),
+            JP(addr) => Ok(self.op_jp(addr)),
+            CALL(addr) => self.op_call(addr),
+            SE(reg, val) => self.op_se(reg, val),
+            LD(reg, val) => self.op_ld(reg, val),
             _ => unimplemented!(),
         }
-        Ok(())
     }
 
     fn op_sys(&mut self, addr: inst::DWord) {
         if addr == 0x100 {
-            self.pc = 0x100;
+            self.running = false;
         } else {
             self.pc += 2;
         }
@@ -104,26 +107,27 @@ impl CPU {
         }
     }
 
-    fn op_se(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), Box<Error>> {
-        let first = self.get_register(reg)?;
-        let second = match val {
-            inst::Value::Register(reg) => self.get_register(reg)?,
-            inst::Value::Byte(b) => b,
-        };
+    fn op_se(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
+        let first = try!(self.get_register(reg));
+        let second = try!(self.unwrap_value(val));
 
         self.pc += if first == second { 4 } else { 2 };
         Ok(())
     }
 
-    fn op_ld(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), Box<Error>> {
-        let val = match val {
-            inst::Value::Register(reg) => self.get_register(reg)?,
-            inst::Value::Byte(b) => b,
-        };
+    fn op_ld(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
+        let val = try!(self.unwrap_value(val));
+        try!(self.set_register(reg, val));
 
-        self.set_register(reg, val)?;
         self.pc += 2;
         Ok(())
+    }
+
+    fn unwrap_value(&self, val: inst::Value) -> Result<u8, CPUError> {
+        match val {
+            inst::Value::Register(reg) => self.get_register(reg),
+            inst::Value::Byte(b) => Ok(b),
+        }
     }
 
     fn get_register(&self, reg: inst::Nibble) -> Result<u8, CPUError> {

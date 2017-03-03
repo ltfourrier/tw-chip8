@@ -1,11 +1,14 @@
 use std::fmt;
 use std::error::Error;
 
+use super::super::memory;
+
 #[derive(Debug)]
 pub enum CPUError {
     StackUnderflow,
     StackOverflow,
     InvalidRegister(u8),
+    MemoryError(memory::MemoryError),
 }
 
 impl fmt::Display for CPUError {
@@ -14,6 +17,7 @@ impl fmt::Display for CPUError {
             CPUError::StackUnderflow => write!(f, "attempting to return from an empty stack"),
             CPUError::StackOverflow => write!(f, "stack overflow"),
             CPUError::InvalidRegister(reg) => write!(f, "register {} is invalid", reg),
+            CPUError::MemoryError(ref err) => write!(f, "memory error: {}", err),
         }
     }
 }
@@ -24,10 +28,14 @@ impl Error for CPUError {
             CPUError::StackUnderflow => "stack underflow",
             CPUError::StackOverflow => "stack overflow",
             CPUError::InvalidRegister(_) => "invalid register",
+            CPUError::MemoryError(ref err) => err.description(),
         }
     }
 
     fn cause(&self) -> Option<&Error> {
-        None
+        match *self {
+            CPUError::MemoryError(ref err) => Some(err),
+            _ => None,
+        }
     }
 }
