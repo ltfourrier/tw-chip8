@@ -13,7 +13,7 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Value::Register(reg) => write!(f, "V{}", reg),
+            Value::Register(reg) => write!(f, "V{:X}", reg),
             Value::Byte(b) => write!(f, "{}", b),
         }
     }

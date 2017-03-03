@@ -74,6 +74,8 @@ impl CPU {
             OR(l_reg, r_reg) => self.op_or(l_reg, r_reg),
             AND(l_reg, r_reg) => self.op_and(l_reg, r_reg),
             XOR(l_reg, r_reg) => self.op_xor(l_reg, r_reg),
+            SUB(l_reg, r_reg) => self.op_sub(l_reg, r_reg),
+            SHR(reg, _) => self.op_shr(reg),
             _ => unimplemented!(),
         }
     }
@@ -142,7 +144,7 @@ impl CPU {
 
         let dst = dst as u16 + add as u16;
         if let inst::Value::Register(_) = val {
-            try!(self.set_register(reg, if dst > 255 { 1 } else { 0 }));
+            try!(self.set_register(15, if dst > 255 { 1 } else { 0 }));
         }
         try!(self.set_register(reg, (dst & 0xFF) as u8));
 
@@ -172,6 +174,25 @@ impl CPU {
         let left = try!(self.get_register(l_reg));
         let right = try!(self.get_register(r_reg));
         try!(self.set_register(l_reg, left ^ right));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_sub(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
+        let left = try!(self.get_register(l_reg));
+        let right = try!(self.get_register(r_reg));
+        try!(self.set_register(15, if left > right { 1 } else { 0 }));
+        try!(self.set_register(l_reg, left.wrapping_sub(right)));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_shr(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let reg_val = try!(self.get_register(reg));
+        try!(self.set_register(15, if reg_val & 1 == 1 { 1 } else { 0 }));
+        try!(self.set_register(reg, reg_val >> 1));
 
         self.pc += 2;
         Ok(())
