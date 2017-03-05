@@ -1,7 +1,10 @@
+extern crate rand;
+
 pub mod inst;
 mod error;
 
 use std::io;
+use self::rand::Rng;
 
 use super::memory;
 pub use self::error::CPUError;
@@ -76,6 +79,15 @@ impl CPU {
             XOR(l_reg, r_reg) => self.op_xor(l_reg, r_reg),
             SUB(l_reg, r_reg) => self.op_sub(l_reg, r_reg),
             SHR(reg, _) => self.op_shr(reg),
+            SUBN(l_reg, r_reg) => self.op_subn(l_reg, r_reg),
+            SHL(reg, _) => self.op_shl(reg),
+            LDI(addr) => Ok(self.op_ldi(addr)),
+            JPO(addr) => Ok(self.op_jpo(addr)),
+            RND(reg, mask) => self.op_rnd(reg, mask),
+            ADDI(reg) => self.op_addi(reg),
+            LDB(reg) => self.op_ldb(reg),
+            LDSBLK(reg) => self.op_ldsblk(reg),
+            LDBLK(reg) => self.op_ldblk(reg),
             _ => unimplemented!(),
         }
     }
@@ -198,6 +210,82 @@ impl CPU {
         Ok(())
     }
 
+    fn op_subn(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
+        let left = try!(self.get_register(l_reg));
+        let right = try!(self.get_register(r_reg));
+        try!(self.set_register(15, if right > left { 1 } else { 0 }));
+        try!(self.set_register(l_reg, right.wrapping_sub(left)));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_shl(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let reg_val = try!(self.get_register(reg));
+        try!(self.set_register(15, if reg_val & 0x80 == 0x80 { 1 } else { 0 }));
+        try!(self.set_register(reg, reg_val << 1));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_ldi(&mut self, addr: inst::DWord) {
+        self.i_register = addr;
+        self.pc += 2;
+    }
+
+    fn op_jpo(&mut self, addr: inst::DWord) {
+        self.pc = self.v_registers[0] as u16 + addr;
+    }
+
+    fn op_rnd(&mut self, reg: inst::Nibble, mask: inst::Word) -> Result<(), CPUError> {
+        try!(self.set_register(reg, rand::random::<u8>() & mask));
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_addi(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let reg_val = try!(self.get_register(reg));
+        self.i_register = self.i_register.wrapping_add(reg_val as u16);
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_ldb(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let reg_val = try!(self.get_register(reg));
+        let addr = self.i_register as usize;
+        self.write_word(addr, reg_val / 100)?;
+        self.write_word(addr + 1, reg_val % 100 / 10)?;
+        self.write_word(addr + 2, reg_val % 10)?;
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_ldsblk(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let addr = self.i_register as usize;
+        for i in 0..reg {
+            let reg_val = self.get_register(i)?;
+            self.write_word(addr + i as usize, reg_val)?;
+        }
+
+        self.pc += 2;
+        Ok(())
+    }
+
+    fn op_ldblk(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
+        let addr = self.i_register as usize;
+        for i in 0..reg {
+            let mem_val = self.read_word(addr + i as usize)?;
+            self.set_register(i, mem_val)?;
+        }
+
+        self.pc += 2;
+        Ok(())
+    }
+
     fn unwrap_value(&self, val: inst::Value) -> Result<u8, CPUError> {
         match val {
             inst::Value::Register(reg) => self.get_register(reg),
@@ -222,5 +310,13 @@ impl CPU {
         } else {
             Err(CPUError::InvalidRegister(reg))
         }
+    }
+
+    fn read_word(&mut self, addr: usize) -> Result<u8, CPUError> {
+        self.memory.read_word(addr).map_err(|err| CPUError::MemoryError(err))
+    }
+
+    fn write_word(&mut self, addr: usize, b: u8) -> Result<(), CPUError> {
+        self.memory.write_word(addr, b).map_err(|err| CPUError::MemoryError(err))
     }
 }
