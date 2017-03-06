@@ -4,7 +4,6 @@ pub mod inst;
 mod error;
 
 use std::io;
-use self::rand::Rng;
 
 use super::memory;
 pub use self::error::CPUError;
@@ -31,7 +30,7 @@ impl CPU {
             sp: 0u8,
             stack: [0u16; STACK_SIZE],
             memory: memory::Memory::new(),
-            running: false,
+            running: true,
         }
     }
 
@@ -45,22 +44,18 @@ impl CPU {
         self.memory.load_rom(rom);
     }
 
-    pub fn run(&mut self) -> Result<(), CPUError> {
-        self.running = true;
-        loop {
-            let inst_dword = try!(self.memory
-                .read_dword(self.pc as usize)
-                .map_err(|err| CPUError::MemoryError(err)));
-            if let Ok(inst) = inst::Instruction::from_binary(inst_dword) {
-                println!("{:#X}\t| {}", self.pc, inst);
-                try!(self.execute(inst));
-            }
+    pub fn step(&mut self) -> Result<(), CPUError> {
+        let addr = self.pc as usize;
+        let inst_dword = self.read_dword(addr)?;
+        let inst = inst::Instruction::from_binary(inst_dword)
+            .map_err(|reason| CPUError::ParsingError(reason))?;
 
-            if !self.running {
-                break;
-            }
-        }
-        Ok(())
+        println!("{:#X}\t| {}", self.pc, inst);
+        self.execute(inst)
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.running
     }
 
     fn execute(&mut self, inst: inst::Instruction) -> Result<(), CPUError> {
@@ -318,5 +313,9 @@ impl CPU {
 
     fn write_word(&mut self, addr: usize, b: u8) -> Result<(), CPUError> {
         self.memory.write_word(addr, b).map_err(|err| CPUError::MemoryError(err))
+    }
+
+    fn read_dword(&mut self, addr: usize) -> Result<u16, CPUError> {
+        self.memory.read_dword(addr).map_err(|err| CPUError::MemoryError(err))
     }
 }

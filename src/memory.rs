@@ -80,9 +80,4 @@ impl Memory {
         let w2 = self.read_word(addr + 1)?;
         Ok((w1 as u16 & 0xFF) << 8 | w2 as u16 & 0xFF)
     }
-
-    pub fn write_dword(&mut self, addr: usize, w: u16) -> Result<(), MemoryError> {
-        self.write_word(addr, (w >> 8 & 0xFF) as u8)?;
-        self.write_word(addr, (w & 0xFF) as u8)
-    }
 }

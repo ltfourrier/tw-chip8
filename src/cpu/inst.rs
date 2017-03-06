@@ -110,7 +110,7 @@ impl Instruction {
             _ if i & 0xF0FF == 0xF033 => Ok(LDB(get_nibble(i, 4))),
             _ if i & 0xF0FF == 0xF055 => Ok(LDSBLK(get_nibble(i, 4))),
             _ if i & 0xF0FF == 0xF065 => Ok(LDBLK(get_nibble(i, 4))),
-            _ => Err("Instruction does not exists"),
+            _ => Err("instruction does not exist"),
         }
     }
 }

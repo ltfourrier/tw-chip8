@@ -9,6 +9,7 @@ pub enum CPUError {
     StackOverflow,
     InvalidRegister(u8),
     MemoryError(memory::MemoryError),
+    ParsingError(&'static str),
 }
 
 impl fmt::Display for CPUError {
@@ -18,6 +19,7 @@ impl fmt::Display for CPUError {
             CPUError::StackOverflow => write!(f, "stack overflow"),
             CPUError::InvalidRegister(reg) => write!(f, "register {} is invalid", reg),
             CPUError::MemoryError(ref err) => write!(f, "memory error: {}", err),
+            CPUError::ParsingError(ref reason) => write!(f, "parsing error: {}", reason),
         }
     }
 }
@@ -29,6 +31,7 @@ impl Error for CPUError {
             CPUError::StackOverflow => "stack overflow",
             CPUError::InvalidRegister(_) => "invalid register",
             CPUError::MemoryError(ref err) => err.description(),
+            CPUError::ParsingError(_) => "parsing error",
         }
     }
 
