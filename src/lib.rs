@@ -2,10 +2,11 @@ extern crate sdl2;
 
 mod cpu;
 mod memory;
-mod window;
+mod ui;
 
 use std::io;
 use std::error::Error;
+use ui::{InboundSignal, OutboundSignal};
 
 pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>>
     where T: io::Write
@@ -13,11 +14,23 @@ pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>
     let mut cpu = cpu::CPU::new();
     cpu.load_rom(data);
 
-    let mut window = window::Window::create()?;
-    while window.is_running() && cpu.is_running() {
-        window.update();
+    let mut running = true;
+    let ui_thread = ui::spawn_ui("TW-Chip8")?;
+    while running {
         cpu.step()?;
+
+        for signal in ui_thread.signal_rx.try_iter() {
+            match signal {
+                OutboundSignal::Quit => running = false,
+            }
+        }
+
+        if !cpu.is_running() {
+            running = false;
+            ui_thread.signal_tx.send(InboundSignal::Quit)?;
+        }
     }
+    ui_thread.handle.join().unwrap();
 
     if let Some(ref mut f) = *dump_file {
         cpu.dump_memory(f)?;
