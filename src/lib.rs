@@ -6,31 +6,25 @@ mod ui;
 
 use std::io;
 use std::error::Error;
-use ui::{InboundSignal, OutboundSignal};
 
 pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>>
     where T: io::Write
 {
+    // Create the UI context (renderer, sound, window...)
+    let mut ui = ui::UiContext::new("TW-Chip8")?;
+
+    // Now create the CPU and load the ROM into memory
     let mut cpu = cpu::CPU::new();
     cpu.load_rom(data);
 
     let mut running = true;
-    let ui_thread = ui::spawn_ui("TW-Chip8")?;
     while running {
+        ui.update();
         cpu.step()?;
-
-        for signal in ui_thread.signal_rx.try_iter() {
-            match signal {
-                OutboundSignal::Quit => running = false,
-            }
-        }
-
-        if !cpu.is_running() {
+        if ui.events.quit || !cpu.is_running() {
             running = false;
-            ui_thread.signal_tx.send(InboundSignal::Quit)?;
         }
     }
-    ui_thread.handle.join().unwrap();
 
     if let Some(ref mut f) = *dump_file {
         cpu.dump_memory(f)?;

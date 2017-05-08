@@ -50,7 +50,7 @@ impl CPU {
         let inst = inst::Instruction::from_binary(inst_dword)
             .map_err(|reason| CPUError::ParsingError(reason))?;
 
-        println!("{:#X}\t| {}", self.pc, inst);
+        //println!("{:#X}\t| {}", self.pc, inst);
         self.execute(inst)
     }
 

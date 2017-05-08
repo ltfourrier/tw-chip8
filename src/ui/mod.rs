@@ -1,54 +1,37 @@
-mod context;
 mod events;
 
-use std::thread;
-use std::time::Duration;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::error::Error;
-use self::context::Context;
+use sdl2;
+use sdl2::pixels::Color;
+use sdl2::render::Renderer;
+use self::events::Events;
 
-pub enum InboundSignal {
-    Quit
+pub struct UiContext<'window> {
+    pub renderer: Renderer<'window>,
+    pub events: Events,
 }
 
-pub enum OutboundSignal {
-    Quit
-}
+impl<'window> UiContext<'window> {
+    pub fn new(title: &'static str) -> Result<UiContext, Box<Error>> {
+        let sdl_context = sdl2::init()?;
+        let video = sdl_context.video()?;
+        let window = video
+            .window(title, 512, 256)
+            .position_centered()
+            .resizable()
+            .build()?;
 
-pub struct UiThread {
-    pub signal_tx: Sender<InboundSignal>,
-    pub signal_rx: Receiver<OutboundSignal>,
-    pub handle: thread::JoinHandle<()>,
-}
+        Ok(UiContext {
+               renderer: window.renderer().accelerated().build()?,
+               events: Events::new(sdl_context.event_pump()?),
+           })
+    }
 
-pub fn spawn_ui(title: &'static str) -> Result<UiThread, Box<Error>> {
-    let (out_tx, out_rx) = channel();
-    let (in_tx, in_rx) = channel();
-    let handle = thread::spawn(move || {
-        let mut ctx = Context::new(title).unwrap();
-
-        let mut running = true;
-        while running {
-            // Check the inbound signal buffer before we do anything.
-            for signal in in_rx.try_iter() {
-                match signal {
-                    InboundSignal::Quit => running = false,
-                };
-            }
-
-            ctx.events.poll();
-            if ctx.events.quit.is_some() {
-                running = false;
-                out_tx.send(OutboundSignal::Quit).unwrap();
-            }
-
-            thread::sleep(Duration::from_millis(16));
+    pub fn update(&mut self) {
+        self.events.poll();
+        if let Some(_) = self.events.immediate.repaint {
+            self.renderer.clear();
+            self.renderer.present();
         }
-    });
-
-    Ok(UiThread {
-        signal_tx: in_tx,
-        signal_rx: out_rx,
-        handle: handle,
-    })
+    }
 }

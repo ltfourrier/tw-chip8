@@ -1,0 +1,101 @@
+use std::fmt;
+
+pub type DWord = u16;
+pub type Word = u8;
+pub type Nibble = u8;
+
+#[derive(Clone,Copy)]
+pub enum Value {
+    Register(Nibble),
+    Byte(Word),
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Value::Register(reg) => write!(f, "V{:X}", reg),
+            Value::Byte(b) => write!(f, "{}", b),
+        }
+    }
+}
+
+pub enum Instruction {
+    SYS(DWord),
+    CLS,
+    RET,
+    JP(DWord),
+    CALL(DWord),
+    SE(Nibble, Value),
+    SNE(Nibble, Value),
+    LD(Nibble, Value),
+    ADD(Nibble, Value),
+    OR(Nibble, Nibble),
+    AND(Nibble, Nibble),
+    XOR(Nibble, Nibble),
+    SUB(Nibble, Nibble),
+    SHR(Nibble, Nibble),
+    SUBN(Nibble, Nibble),
+    SHL(Nibble, Nibble),
+    LDI(DWord),
+    JPO(DWord),
+    RND(Nibble, Word),
+    DRW(Nibble, Nibble, Nibble),
+    SKP(Nibble),
+    SKNP(Nibble),
+    LDDT(Nibble),
+    LDK(Nibble),
+    LDSDT(Nibble),
+    LDSST(Nibble),
+    ADDI(Nibble),
+    LDF(Nibble),
+    LDB(Nibble),
+    LDSBLK(Nibble),
+    LDBLK(Nibble),
+}
+
+fn get_nibble(i: u16, offset: u16) -> u8 {
+    (i >> (16 - offset - 4) & 0x0F) as u8
+}
+
+fn get_word(i: u16, offset: u16) -> u8 {
+    (i >> (16 - offset - 8) & 0xFF) as u8
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Instruction::*;
+        match *self {
+            SYS(ref addr) => write!(f, "SYS {:#X}", addr),
+            CLS => write!(f, "CLS"),
+            RET => write!(f, "RET"),
+            JP(ref addr) => write!(f, "JP {:#X}", addr),
+            CALL(ref addr) => write!(f, "CALL {:#X}", addr),
+            SE(ref reg, ref v) => write!(f, "SE V{}, {}", reg, v),
+            SNE(ref reg, ref v) => write!(f, "SNE V{}, {}", reg, v),
+            LD(ref reg, ref v) => write!(f, "LD V{}, {}", reg, v),
+            ADD(ref reg, ref v) => write!(f, "ADD V{}, {}", reg, v),
+            OR(ref reg1, ref reg2) => write!(f, "OR V{}, V{}", reg1, reg2),
+            AND(ref reg1, ref reg2) => write!(f, "AND V{}, V{}", reg1, reg2),
+            XOR(ref reg1, ref reg2) => write!(f, "XOR V{}, V{}", reg1, reg2),
+            SUB(ref reg1, ref reg2) => write!(f, "SUB V{}, V{}", reg1, reg2),
+            SHR(ref reg, _) => write!(f, "SHR V{}", reg),
+            SUBN(ref reg1, ref reg2) => write!(f, "SUBN V{}, V{}", reg1, reg2),
+            SHL(ref reg, _) => write!(f, "SHL V{}", reg),
+            LDI(ref addr) => write!(f, "LD I, {:#X}", addr),
+            JPO(ref addr) => write!(f, "JP V0, {:#X}", addr),
+            RND(ref reg, ref b) => write!(f, "RND V{}, {}", reg, b),
+            DRW(ref reg1, ref reg2, ref n) => write!(f, "DRW V{}, V{}, {}", reg1, reg2, n),
+            SKP(ref reg) => write!(f, "SKP V{}", reg),
+            SKNP(ref reg) => write!(f, "SKNP V{}", reg),
+            LDDT(ref reg) => write!(f, "LD V{}, DT", reg),
+            LDK(ref reg) => write!(f, "LD V{}, K", reg),
+            LDSDT(ref reg) => write!(f, "LD DT, V{}", reg),
+            LDSST(ref reg) => write!(f, "LD ST, V{}", reg),
+            ADDI(ref reg) => write!(f, "ADD I, V{}", reg),
+            LDF(ref reg) => write!(f, "LD F, V{}", reg),
+            LDB(ref reg) => write!(f, "LD B, V{}", reg),
+            LDSBLK(ref reg) => write!(f, "LD [I], V{}", reg),
+            LDBLK(ref reg) => write!(f, "LD V{}, [I]", reg),
+        }
+    }
+}
