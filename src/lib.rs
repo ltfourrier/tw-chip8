@@ -1,11 +1,16 @@
 extern crate sdl2;
 
+#[macro_use]
+extern crate log;
+
+mod com;
 mod cpu;
 mod memory;
 mod ui;
 
 use std::io;
 use std::error::Error;
+use com::Communicator;
 
 pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>>
     where T: io::Write
@@ -17,10 +22,13 @@ pub fn run<T>(data: Vec<u8>, dump_file: &mut Option<T>) -> Result<(), Box<Error>
     let mut cpu = cpu::CPU::new();
     cpu.load_rom(data);
 
+    // Create a communicator that will allow communication between the CPU and the UI
+    let mut communicator = Communicator::new();
+
     let mut running = true;
     while running {
-        ui.update();
-        cpu.step()?;
+        ui.update(&mut communicator);
+        cpu.step(&mut communicator)?;
         if ui.events.quit || !cpu.is_running() {
             running = false;
         }

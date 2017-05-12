@@ -2,8 +2,26 @@ use std::io;
 use std::fmt;
 use std::error::Error;
 
-// We remove the first 512 bytes from the ram size, as those are reserved
 const RAM_SIZE: usize = 0x1000;
+
+static HEX_DIGITS: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+];
 
 #[derive(Debug)]
 pub enum MemoryError {
@@ -39,7 +57,15 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Memory {
-        Memory { ram: [0u8; RAM_SIZE] }
+        let mut ram = [0u8; RAM_SIZE];
+        {
+            let hex_iter = HEX_DIGITS.iter();
+            let iter = ram.iter_mut().skip(0x150).zip(hex_iter);
+            for (src, dst) in iter {
+                *src = *dst;
+            }
+        }
+        Memory { ram: ram }
     }
 
     pub fn load_rom(&mut self, rom: Vec<u8>) {
@@ -58,7 +84,6 @@ impl Memory {
 
     pub fn read_word(&self, addr: usize) -> Result<u8, MemoryError> {
         match addr {
-            _ if addr < 0x200 => Err(MemoryError::ReservedAddress(addr)),
             _ if addr > 0xFFF => Err(MemoryError::UnmappedAddress(addr)),
             _ => Ok(self.ram[addr]),
         }

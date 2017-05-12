@@ -5,7 +5,9 @@ mod error;
 
 use std::io;
 
-use super::memory;
+use memory;
+use com::Communicator;
+use com::video::{VideoCommunicator, VideoSignal};
 pub use self::error::CPUError;
 
 const V_REGISTER_COUNT: usize = 16;
@@ -44,24 +46,25 @@ impl CPU {
         self.memory.load_rom(rom);
     }
 
-    pub fn step(&mut self) -> Result<(), CPUError> {
+    pub fn step(&mut self, com: &mut Communicator) -> Result<(), CPUError> {
         let addr = self.pc as usize;
         let inst_dword = self.read_dword(addr)?;
         let inst = inst::Instruction::from_binary(inst_dword)
             .map_err(|reason| CPUError::ParsingError(reason))?;
 
         //println!("{:#X}\t| {}", self.pc, inst);
-        self.execute(inst)
+        self.execute(inst, com)
     }
 
     pub fn is_running(&self) -> bool {
         self.running
     }
 
-    fn execute(&mut self, inst: inst::Instruction) -> Result<(), CPUError> {
+    fn execute(&mut self, inst: inst::Instruction, com: &mut Communicator) -> Result<(), CPUError> {
         use self::inst::Instruction::*;
         match inst {
             SYS(addr) => Ok(self.op_sys(addr)),
+            CLS => Ok(self.op_cls(com)),
             RET => self.op_ret(),
             JP(addr) => Ok(self.op_jp(addr)),
             CALL(addr) => self.op_call(addr),
@@ -79,6 +82,7 @@ impl CPU {
             LDI(addr) => Ok(self.op_ldi(addr)),
             JPO(addr) => Ok(self.op_jpo(addr)),
             RND(reg, mask) => self.op_rnd(reg, mask),
+            DRW(x_reg, y_reg, size) => self.op_drw(x_reg, y_reg, size, com),
             ADDI(reg) => self.op_addi(reg),
             LDB(reg) => self.op_ldb(reg),
             LDSBLK(reg) => self.op_ldsblk(reg),
@@ -93,6 +97,14 @@ impl CPU {
         } else {
             self.pc += 2;
         }
+    }
+
+    fn op_cls(&mut self, com: &mut Communicator) {
+        for pixel in com.video.display.iter_mut() {
+            *pixel = false;
+        }
+        com.video.signal = VideoSignal::Clear;
+        self.pc += 2;
     }
 
     fn op_ret(&mut self) -> Result<(), CPUError> {
@@ -122,103 +134,103 @@ impl CPU {
     }
 
     fn op_se(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
-        let first = try!(self.get_register(reg));
-        let second = try!(self.unwrap_value(val));
+        let first = self.get_register(reg)?;
+        let second = self.unwrap_value(val)?;
 
         self.pc += if first == second { 4 } else { 2 };
         Ok(())
     }
 
     fn op_sne(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
-        let first = try!(self.get_register(reg));
-        let second = try!(self.unwrap_value(val));
+        let first = self.get_register(reg)?;
+        let second = self.unwrap_value(val)?;
 
         self.pc += if first == second { 2 } else { 4 };
         Ok(())
     }
 
     fn op_ld(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
-        let val = try!(self.unwrap_value(val));
-        try!(self.set_register(reg, val));
+        let val = self.unwrap_value(val)?;
+        self.set_register(reg, val)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_add(&mut self, reg: inst::Nibble, val: inst::Value) -> Result<(), CPUError> {
-        let dst = try!(self.get_register(reg));
-        let add = try!(self.unwrap_value(val));
+        let dst = self.get_register(reg)?;
+        let add = self.unwrap_value(val)?;
 
         let dst = dst as u16 + add as u16;
         if let inst::Value::Register(_) = val {
-            try!(self.set_register(15, if dst > 255 { 1 } else { 0 }));
+            self.set_register(15, if dst > 255 { 1 } else { 0 })?;
         }
-        try!(self.set_register(reg, (dst & 0xFF) as u8));
+        self.set_register(reg, (dst & 0xFF) as u8)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_or(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
-        let left = try!(self.get_register(l_reg));
-        let right = try!(self.get_register(r_reg));
-        try!(self.set_register(l_reg, left | right));
+        let left = self.get_register(l_reg)?;
+        let right = self.get_register(r_reg)?;
+        self.set_register(l_reg, left | right)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_and(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
-        let left = try!(self.get_register(l_reg));
-        let right = try!(self.get_register(r_reg));
-        try!(self.set_register(l_reg, left & right));
+        let left = self.get_register(l_reg)?;
+        let right = self.get_register(r_reg)?;
+        self.set_register(l_reg, left & right)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_xor(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
-        let left = try!(self.get_register(l_reg));
-        let right = try!(self.get_register(r_reg));
-        try!(self.set_register(l_reg, left ^ right));
+        let left = self.get_register(l_reg)?;
+        let right = self.get_register(r_reg)?;
+        self.set_register(l_reg, left ^ right)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_sub(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
-        let left = try!(self.get_register(l_reg));
-        let right = try!(self.get_register(r_reg));
-        try!(self.set_register(15, if left > right { 1 } else { 0 }));
-        try!(self.set_register(l_reg, left.wrapping_sub(right)));
+        let left = self.get_register(l_reg)?;
+        let right = self.get_register(r_reg)?;
+        self.set_register(15, if left > right { 1 } else { 0 })?;
+        self.set_register(l_reg, left.wrapping_sub(right))?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_shr(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
-        let reg_val = try!(self.get_register(reg));
-        try!(self.set_register(15, if reg_val & 1 == 1 { 1 } else { 0 }));
-        try!(self.set_register(reg, reg_val >> 1));
+        let reg_val = self.get_register(reg)?;
+        self.set_register(15, if reg_val & 1 == 1 { 1 } else { 0 })?;
+        self.set_register(reg, reg_val >> 1)?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_subn(&mut self, l_reg: inst::Nibble, r_reg: inst::Nibble) -> Result<(), CPUError> {
-        let left = try!(self.get_register(l_reg));
-        let right = try!(self.get_register(r_reg));
-        try!(self.set_register(15, if right > left { 1 } else { 0 }));
-        try!(self.set_register(l_reg, right.wrapping_sub(left)));
+        let left = self.get_register(l_reg)?;
+        let right = self.get_register(r_reg)?;
+        self.set_register(15, if right > left { 1 } else { 0 })?;
+        self.set_register(l_reg, right.wrapping_sub(left))?;
 
         self.pc += 2;
         Ok(())
     }
 
     fn op_shl(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
-        let reg_val = try!(self.get_register(reg));
-        try!(self.set_register(15, if reg_val & 0x80 == 0x80 { 1 } else { 0 }));
-        try!(self.set_register(reg, reg_val << 1));
+        let reg_val = self.get_register(reg)?;
+        self.set_register(15, if reg_val & 0x80 == 0x80 { 1 } else { 0 })?;
+        self.set_register(reg, reg_val << 1)?;
 
         self.pc += 2;
         Ok(())
@@ -234,14 +246,38 @@ impl CPU {
     }
 
     fn op_rnd(&mut self, reg: inst::Nibble, mask: inst::Word) -> Result<(), CPUError> {
-        try!(self.set_register(reg, rand::random::<u8>() & mask));
+        self.set_register(reg, rand::random::<u8>() & mask)?;
 
         self.pc += 2;
         Ok(())
     }
 
+    fn op_drw(&mut self,
+              x_reg: inst::Nibble,
+              y_reg: inst::Nibble,
+              size: inst::Nibble,
+              com: &mut Communicator)
+              -> Result<(), CPUError> {
+        let x = self.get_register(x_reg)? as usize;
+        let y = self.get_register(y_reg)? as usize;
+        let size = size as usize;
+        let mut collision = false;
+
+        for line in 0..size {
+            let i_register = self.i_register as usize;
+            let pixels = self.read_word(i_register + line)?;
+            for column in 0..8 {
+                let pixel = (pixels & (0x80 >> column)) != 0;
+                collision = self.set_pixel(x + column, y + line, pixel, &mut com.video) | collision;
+            }
+        }
+
+        com.video.signal = VideoSignal::Refresh;
+        Ok(())
+    }
+
     fn op_addi(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
-        let reg_val = try!(self.get_register(reg));
+        let reg_val = self.get_register(reg)?;
         self.i_register = self.i_register.wrapping_add(reg_val as u16);
 
         self.pc += 2;
@@ -249,7 +285,7 @@ impl CPU {
     }
 
     fn op_ldb(&mut self, reg: inst::Nibble) -> Result<(), CPUError> {
-        let reg_val = try!(self.get_register(reg));
+        let reg_val = self.get_register(reg)?;
         let addr = self.i_register as usize;
         self.write_word(addr, reg_val / 100)?;
         self.write_word(addr + 1, reg_val % 100 / 10)?;
@@ -308,14 +344,36 @@ impl CPU {
     }
 
     fn read_word(&mut self, addr: usize) -> Result<u8, CPUError> {
-        self.memory.read_word(addr).map_err(|err| CPUError::MemoryError(err))
+        self.memory
+            .read_word(addr)
+            .map_err(|err| CPUError::MemoryError(err))
     }
 
     fn write_word(&mut self, addr: usize, b: u8) -> Result<(), CPUError> {
-        self.memory.write_word(addr, b).map_err(|err| CPUError::MemoryError(err))
+        self.memory
+            .write_word(addr, b)
+            .map_err(|err| CPUError::MemoryError(err))
     }
 
     fn read_dword(&mut self, addr: usize) -> Result<u16, CPUError> {
-        self.memory.read_dword(addr).map_err(|err| CPUError::MemoryError(err))
+        self.memory
+            .read_dword(addr)
+            .map_err(|err| CPUError::MemoryError(err))
+    }
+
+    fn set_pixel(&mut self,
+                 x: usize,
+                 y: usize,
+                 pixel: bool,
+                 video_com: &mut VideoCommunicator)
+                 -> bool {
+        // Wrap the pixels around the screen
+        let x = x % video_com.width;
+        let y = y % video_com.height;
+
+        let idx = video_com.width * y + x;
+        let collision = video_com.display[idx] != false && pixel;
+        video_com.display[idx] = video_com.display[idx] ^ pixel;
+        collision
     }
 }
