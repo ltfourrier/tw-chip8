@@ -2,7 +2,7 @@ use std::io;
 
 const RAM_SIZE: usize = 0x1000;
 const FONT_SIZE: usize = 80;
-const FONT_OFFSET: usize = 0x150;
+const FONT_OFFSET: usize = 0x100;
 
 static FONT: [u8; FONT_SIZE] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
