@@ -99,6 +99,18 @@ impl Variant {
         }
         true
     }
+
+    pub fn as_binary(&self, inst: &Instruction) -> Result<u16, InstructionError> {
+        let mut bin_inst = self.opcode;
+        for i in 0..MAX_ARGUMENTS {
+            let mask = self.arguments[i].mask;
+            let arg_value = inst.arguments[i].get_value()?;
+            if mask != 0 && arg_value != 0 {
+                bin_inst = bin_inst | ((arg_value << mask.trailing_zeros()) & mask);
+            }
+        }
+        Ok(bin_inst)
+    }
 }
 
 static INSTRUCTION_VARIANTS: [Variant; 1] = [
@@ -156,5 +168,58 @@ mod tests {
             ],
         };
         assert_eq!(variant.matches(&bad_arg), false);
+
+        // Test good instruction (with label)
+        let good_label = Instruction {
+            code: Code::Load,
+            arguments: [
+                Argument::ImagePointer,
+                Argument::Label(String::from("tuturu")),
+                Argument::None,
+            ],
+        };
+        assert_eq!(variant.matches(&good_label), true);
+    }
+
+    #[test]
+    fn binary_test() {
+        // "DRW vx, vy, n" instruction
+        let drw_variant = variant!(
+            Code::Draw,
+            0xD000,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0),
+            argument!(Byte, 0x00F)
+        );
+
+        // "LD I, nnn" instruction
+        let ld_variant = variant!(
+            Code::Load,
+            0xA000,
+            argument!(ImagePointer),
+            argument!(Address, 0xFFF)
+        );
+
+        // Test good DRW instruction
+        let good_drw_inst = Instruction {
+            code: Code::Draw,
+            arguments: [
+                Argument::Register(4),
+                Argument::Register(2),
+                Argument::Byte(12),
+            ],
+        };
+        assert_eq!(drw_variant.as_binary(&good_drw_inst).unwrap(), 0xD42Cu16);
+
+        // Test good LD instruction
+        let good_ld_inst = Instruction {
+            code: Code::Load,
+            arguments: [
+                Argument::ImagePointer,
+                Argument::Address(0xDED),
+                Argument::None,
+            ],
+        };
+        assert_eq!(ld_variant.as_binary(&good_ld_inst).unwrap(), 0xADEDu16);
     }
 }
