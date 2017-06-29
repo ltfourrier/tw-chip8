@@ -17,6 +17,14 @@ macro_rules! argument {
 }
 
 macro_rules! variant {
+    ($c:expr, $o:expr) => (
+        Variant{
+            code: $c,
+            opcode: $o,
+            arguments: [argument!(None), argument!(None), argument!(None)],
+        }
+    );
+
     ($c:expr, $o:expr, $arg1:expr) => (
         Variant{
             code: $c,
@@ -113,14 +121,195 @@ impl Variant {
     }
 }
 
-static INSTRUCTION_VARIANTS: [Variant; 1] = [
-    variant!(
-        Code::Load,
-        0xA000,
-        argument!(ImagePointer),
-        argument!(Address, 0xFFF)
-    ),
-];
+static INSTRUCTION_VARIANTS: [Variant; 36] =
+    [
+        variant!(Code::ClearScreen, 0x00E0),
+        variant!(Code::Return, 0x00EE),
+        variant!(Code::Jump, 0x1000, argument!(Address, 0xFFF)),
+        variant!(Code::Call, 0x2000, argument!(Address, 0xFFF)),
+        variant!(
+            Code::SkipEquals,
+            0x3000,
+            argument!(Register, 0xF00),
+            argument!(Byte, 0x0FF)
+        ),
+        variant!(
+            Code::SkipNotEquals,
+            0x4000,
+            argument!(Register, 0xF00),
+            argument!(Byte, 0x0FF)
+        ),
+        variant!(
+            Code::SkipEquals,
+            0x5000,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Load,
+            0x6000,
+            argument!(Register, 0xF00),
+            argument!(Byte, 0x0FF)
+        ),
+        variant!(
+            Code::Add,
+            0x7000,
+            argument!(Register, 0xF00),
+            argument!(Byte, 0x0FF)
+        ),
+        variant!(
+            Code::Load,
+            0x8000,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Or,
+            0x8001,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::And,
+            0x8002,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Xor,
+            0x8003,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Add,
+            0x8004,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Subtract,
+            0x8005,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(Code::ShiftRight, 0x8006, argument!(Register, 0xF00)),
+        variant!(
+            Code::ShiftRight,
+            0x8006,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::SubtractInverse,
+            0x8007,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(Code::ShiftLeft, 0x800E, argument!(Register, 0xF00)),
+        variant!(
+            Code::ShiftLeft,
+            0x800E,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::SkipNotEquals,
+            0x9000,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0)
+        ),
+        variant!(
+            Code::Load,
+            0xA000,
+            argument!(ImagePointer),
+            argument!(Address, 0xFFF)
+        ),
+        variant!(
+            Code::Jump,
+            0xB000,
+            argument!(Register),
+            argument!(Address, 0xFFF)
+        ),
+        variant!(
+            Code::Rand,
+            0xC000,
+            argument!(Register, 0xF00),
+            argument!(Byte, 0x0FF)
+        ),
+        variant!(
+            Code::Draw,
+            0xD000,
+            argument!(Register, 0xF00),
+            argument!(Register, 0x0F0),
+            argument!(Byte, 0x00F)
+        ),
+        variant!(Code::SkipKeyPressed, 0xE09E, argument!(Register, 0xF00)),
+        variant!(Code::SkipKeyNotPressed, 0xE0A1, argument!(Register, 0xF00)),
+        variant!(
+            Code::Load,
+            0xF007,
+            argument!(Register, 0xF00),
+            argument!(DelayTimer)
+        ),
+        variant!(
+            Code::Load,
+            0xF00A,
+            argument!(Register, 0xF00),
+            argument!(KeyRegister)
+        ),
+        variant!(
+            Code::Load,
+            0xF015,
+            argument!(DelayTimer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Load,
+            0xF018,
+            argument!(SoundTimer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Add,
+            0xF01E,
+            argument!(ImagePointer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Load,
+            0xF029,
+            argument!(FontPointer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Load,
+            0xF033,
+            argument!(BcdPointer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Load,
+            0xF055,
+            argument!(ArrayPointer),
+            argument!(Register, 0xF00)
+        ),
+        variant!(
+            Code::Load,
+            0xF065,
+            argument!(Register, 0xF00),
+            argument!(ArrayPointer)
+        ),
+    ];
+
+pub fn get_variant(inst: &Instruction) -> Option<&Variant> {
+    for variant in INSTRUCTION_VARIANTS.iter() {
+        if variant.matches(inst) {
+            return Some(variant);
+        }
+    }
+    None
+}
 
 #[cfg(test)]
 mod tests {
@@ -221,5 +410,52 @@ mod tests {
             ],
         };
         assert_eq!(ld_variant.as_binary(&good_ld_inst).unwrap(), 0xADEDu16);
+    }
+
+    #[test]
+    fn get_variant_test() {
+        // Test instruction with one variant, without argument
+        let cls_inst = Instruction {
+            code: Code::ClearScreen,
+            arguments: [
+                Argument::None,
+                Argument::None,
+                Argument::None,
+            ],
+        };
+        assert_eq!(get_variant(&cls_inst).unwrap().opcode, 0x00E0);
+
+        // Test instruction with one variant, with good arguments
+        let good_drw_inst = Instruction {
+            code: Code::Draw,
+            arguments: [
+                Argument::Register(4),
+                Argument::Register(2),
+                Argument::Byte(10),
+            ],
+        };
+        assert_eq!(get_variant(&good_drw_inst).unwrap().opcode, 0xD000);
+
+        // Test instruction with one variant, but bad arguments
+        let bad_drw_inst = Instruction {
+            code: Code::Draw,
+            arguments: [
+                Argument::Register(4),
+                Argument::Register(2),
+                Argument::ImagePointer,
+            ],
+        };
+        assert!(get_variant(&bad_drw_inst).is_none());
+
+        // Test instruction with multiple variants
+        let ldi_inst = Instruction {
+            code: Code::Load,
+            arguments: [
+                Argument::ImagePointer,
+                Argument::Address(0xDED),
+                Argument::None,
+            ],
+        };
+        assert_eq!(get_variant(&ldi_inst).unwrap().opcode, 0xA000);
     }
 }
